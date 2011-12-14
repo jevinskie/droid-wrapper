@@ -49,7 +49,7 @@ This wrapper is similar to http://plausible.org/andy/agcc,
 but different in following points:
 
  *  With this script, all command line arguments will be passed to the
-    compiler and linker. This is important for the software uses configure.
+    compiler and linker. This is important if the software uses configure.
  *  This script supports g++ and ld, not only gcc.
 
 ----
