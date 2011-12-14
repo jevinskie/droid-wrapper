@@ -28,48 +28,72 @@
 =end
 
 debug = false
-if (ENV["DROID_WRAPPER_DEBUG"])
-    debug = true
-end
+debug = true if (ENV["DROID_WRAPPER_DEBUG"])
 
 droid_root = ENV["DROID_ROOT"]
-if (!droid_root)
-    STDERR.puts "You must specify DROID_ROOT"
+ndk_root = ENV["NDK_ROOT"]
+if (droid_root)
+#    STDERR.puts "ASOP Build Root: #{droid_root}" if (debug)
+elsif (ndk_root)
+#    STDERR.puts "NDK Build Root: #{ndk_root}" if (debug)
+else
+    STDERR.puts "You must specify DROID_ROOT or NDK_ROOT"
     exit 1
 end
+
 droid_target = ENV["DROID_TARGET"]
-if (!droid_target)
-    STDERR.puts "You must specify DROID_TARGET"
+ndk_target = ENV["NDK_TARGET"]
+if (droid_target)
+#    STDERR.puts "ASOP Build Target: #{droid_target}" if (debug)
+elsif (ndk_target)
+#    STDERR.puts "NDK Build Target: #{ndk_target}" if (debug)
+    if (Dir["#{ndk_root}/toolchains/#{ndk_target}*"].length != 1)
+        STDERR.puts "NDK_TARGET not working, try one of these:"
+        Dir["#{ndk_root}/toolchains/*"].each{|s| STDERR.puts /(.*[a-z]|x86)-([0-9].*)/.match(s.split("/").last)[1]}
+        exit 1
+    else
+        ndk_target = Dir["#{ndk_root}/toolchains/#{ndk_target}*"].first.split("/").last
+        /(.*[a-z]|x86)-([0-9].*)/ =~ ndk_target
+	target, toolver = $~[1], $~[2]
+#        STDERR.puts "Target and version: #{target}, #{toolver}" if (debug)
+    end
+    ndk_platform = ENV["NDK_PLATFORM"]
+    if (!ndk_platform) || (Dir["#{ndk_root}/platforms/android-#{ndk_platform}"].length != 1)
+        STDERR.puts "You must specify NDK_PLATFORM and it must me one of these:"
+        Dir["#{ndk_root}/platforms/*"].each{|s| STDERR.puts s.split("-").last}
+        exit 1
+    else
+#        STDERR.puts "NDK_PLATFORM: #{ndk_platform}" if (debug)
+    end
+else
+    STDERR.puts "You must specify DROID_TARGET or NDK_TARGET"
     exit 1
 end
 
 droid_host = ENV["DROID_HOST"]
-if (!droid_host)
-    droid_host = "linux-x86"
-end
+droid_host = "linux-x86" if (!droid_host)
 
-toolver = "4.2.1"
+toolver = "4.2.1" if (!toolver)
 
-toolchain = "#{droid_root}/prebuilt/#{droid_host}/toolchain/arm-eabi-#{toolver}"
-alib = "#{droid_root}/out/target/product/#{droid_target}/obj/lib"
+prebuilt  = "#{ndk_root}/toolchains/#{target}-#{toolver}/prebuilt/#{droid_host}" if (ndk_root)
+
+ldscripts = "#{prebuilt}/#{target}/lib/ldscripts/" if (ndk_root)
+
+
+toolchain = "#{droid_root}/prebuilt/#{droid_host}/toolchain/arm-eabi-#{toolver}" if (droid_root)
+alib = "#{droid_root}/out/target/product/#{droid_target}/obj/lib" if (droid_root)
+armelf_location = "-Wl,-T,#{droid_root}/build/core/armelf.x" if (droid_root)
+
+#toolchain = "#{ndk_root}/toolchains/#{target}-#{toolver}" if (ndk_root)
+toolchain = "#{prebuilt}"
+alib = "#{ndk_root}/platforms/android-#{ndk_platform}/arch-arm" if (ndk_root)
+armelf_location = "-Wl,-T,#{prebuilt}/#{target}/lib/ldscripts/armelf_linux_eabi.x" if (ndk_root)
 
 # many compiler/linker flags were extracted from
 # build/core/combo/linux-arm.mk file.
 
-cflags =
+includes =
     [
-     "-DANDROID",
-     "-msoft-float",
-     "-fpic",
-     "-ffunction-sections",
-     "-funwind-tables",
-     "-fstack-protector",
-     "-fno-short-enums",
-     "-fno-exceptions",
-     "-fmessage-length=0",
-     "-Wno-multichar",
-     #"-mthumb-interwork",
-
      "-I#{droid_root}/system/core/include",
      "-I#{droid_root}/hardware/libhardware/include",
      "-I#{droid_root}/hardware/libhardware_legacy/include",
@@ -90,26 +114,64 @@ cflags =
      "-I#{droid_root}/bionic/libm/arm",
      "-I#{droid_root}/bionic/libm",
      "-I#{droid_root}/out/target/product/#{droid_target}/obj/SHARED_LIBRARIES/libm_intermediates"
-    ]
+    ] if (droid_root)
+
+includes =
+    [
+     "-I#{ndk_root}/platforms/android-#{ndk_platform}/arch-arm/usr/include"
+    ] if (ndk_root)
+
+cflags =
+    [
+     includes,
+     "-D__ARM_ARCH_5__",
+     "-D__ARM_ARCH_5T__",
+     "-D__ARM_ARCH_5E__",
+     "-D__ARM_ARCH_5TE__",
+     "-DANDROID",
+     "-DSK_RELEASE",
+     "-DNDEBUG",
+     "-UDEBUG",
+     "-march=armv5te",
+     "-mtune=xscale",
+     "-msoft-float",
+     "-mthumb-interwork",
+     "-fpic",
+     "-fno-exceptions",
+     "-ffunction-sections",
+     "-funwind-tables",
+     "-fstack-protector",
+     #"-fno-short-enums",
+     "-fmessage-length=0",
+     #"-Wno-multichar",
+    ].flatten
+
+libgcca = "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/libgcc.a" if (droid_root)
+libgcca = "#{toolchain}/lib/gcc/#{target}/#{toolver}/libgcc.a" if (ndk_root)
+lalib = "#{alib}" if (droid_root)
+lalib = "#{alib}/usr/lib" if (ndk_root)
 
 link_args =
     [
      "-Bdynamic",
-     "-Wl,-T,#{droid_root}/build/core/armelf.x",
+     armelf_location,
      "-Wl,-dynamic-linker,/system/bin/linker",
      "-Wl,--gc-sections",
      "-Wl,-z,nocopyreloc",
      "-Wl,--no-undefined",
      "-Wl,-rpath-link=#{alib}",
-     "-Wl,-rpath,/system/lib",
-     "-L#{alib}",
+     #"-Wl,-rpath,/system/lib",
+     "-L#{lalib}",
      "-nostdlib",
-     "#{alib}/crtbegin_dynamic.o",
-     "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/libgcc.a",
-     "#{alib}/crtend_android.o",
+     "#{lalib}/crtend_android.o",
+     "#{lalib}/crtbegin_dynamic.o",
      "-lc",
+     "-ldl",
+     libgcca,
      "-lm"
-    ]
+    ].flatten
+
+libgcca = "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/interwork/libgcc.a" if (droid_root)
 
 shlib_args =
     [
@@ -117,22 +179,23 @@ shlib_args =
      "-Wl,-T,#{droid_root}/build/core/armelf.xsc",
      "-Wl,--gc-sections",
      "-Wl,-shared,-Bsymbolic",
-     "-L#{alib}",
+     "-L#{lalib}",
      "-Wl,--no-whole-archive",
      "-lc",
      "-lm",
      "-Wl,--no-undefined",
-     "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/interwork/libgcc.a",
+     libgcca,
      "-Wl,--whole-archive",
      "-Wl,--warn-unresolved-symbols"
-    ]
+    ].flatten
 
 ### check myself
 prog = nil
 oprog = nil
 if ($0 =~ /^.*-([^-]+)$/) 
     oprog = $1
-    prog = "#{toolchain}/bin/arm-eabi-#{$1}"
+    prog = "#{toolchain}/bin/arm-eabi-#{$1}" if (droid_root)
+    prog = "#{toolchain}/bin/#{target}-#{$1}" if (ndk_root)
 else
     STDERR.puts "internal error: invalid command name."
     exit 1
@@ -165,20 +228,20 @@ argv = ARGV
 
 case mode
 when "compile"
-    argv = cflags + ARGV
+    argv = ARGV + cflags
     
 when "link"
     if (!isLD) 
-        argv = cflags + link_args + ARGV
+        argv = ARGV + cflags + link_args 
     else
-        argv = link_args + ARGV
+        argv = ARGV + link_args
     end
 
 when "shlib"
     if (!isLD)
-        argv = cflags + shlib_args + ARGV
+        argv = ARGV + cflags + shlib_args
     else
-        argv = shlib_args + ARGV
+        argv = ARGV + shlib_args
     end
 end
 
