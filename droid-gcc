@@ -83,11 +83,13 @@ ldscripts = "#{prebuilt}/#{target}/lib/ldscripts/" if (ndk_root)
 toolchain = "#{droid_root}/prebuilt/#{droid_host}/toolchain/arm-eabi-#{toolver}" if (droid_root)
 alib = "#{droid_root}/out/target/product/#{droid_target}/obj/lib" if (droid_root)
 armelf_location = "-Wl,-T,#{droid_root}/build/core/armelf.x" if (droid_root)
+armelfxsc_location = "-Wl,-T,#{droid_root}/build/core/armelf.xsc" if (droid_root)
 
 #toolchain = "#{ndk_root}/toolchains/#{target}-#{toolver}" if (ndk_root)
-toolchain = "#{prebuilt}"
+toolchain = "#{prebuilt}" if (ndk_root)
 alib = "#{ndk_root}/platforms/android-#{ndk_platform}/arch-arm" if (ndk_root)
 armelf_location = "-Wl,-T,#{prebuilt}/#{target}/lib/ldscripts/armelf_linux_eabi.x" if (ndk_root)
+armelfxsc_location = "-Wl,-T,#{prebuilt}/#{target}/lib/ldscripts/armelf_linux_eabi.xsc" if (ndk_root)
 
 # many compiler/linker flags were extracted from
 # build/core/combo/linux-arm.mk file.
@@ -176,7 +178,7 @@ libgcca = "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/interwork/libgcc.a" if (droi
 shlib_args =
     [
      "-nostdlib",
-     "-Wl,-T,#{droid_root}/build/core/armelf.xsc",
+     armelfxsc_location,
      "-Wl,--gc-sections",
      "-Wl,-shared,-Bsymbolic",
      "-L#{lalib}",
