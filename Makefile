@@ -22,4 +22,4 @@ package:
 	  droid-wrapper-${VERSION}/
 	tar cvzf droid-wrapper-${VERSION}.tar.gz droid-wrapper-${VERSION}
 
-
+.PHONY: install package
