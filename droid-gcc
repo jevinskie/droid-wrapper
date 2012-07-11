@@ -147,7 +147,6 @@ cflags =
      "-fmessage-length=0",
      #"-Wno-multichar",
      "-Dbionic",
-     "-std=gnu99",
     ].flatten
 
 libgcca = "#{toolchain}/lib/gcc/arm-eabi/#{toolver}/libgcc.a" if (droid_root)
